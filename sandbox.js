@@ -19,7 +19,6 @@ async function populate (actor, callback) {
     throw e;
   }
 }
-
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true}));
 var database, collection;
@@ -51,50 +50,35 @@ app.get("/movies/:id", (request, response) => {
   });
 });
 
-//Doesn't Work
+//Only works with Insomnia, not curl
+app.get("/movies/search", (request, response) => {
+  collection.find({"metascore":{$gte: parseInt(request.query.metascore)}}).limit(parseInt(request.query.limit)).sort("metascore",-1,(error, result) => {
+    if(error){
+      return response.status(500).send(error);
+    }
+    response.send(result);
+  });
+});
 
-// app.get("/movies/search", (request, response) => {
-//   collection.aggregate([{$group:{metascore: {$gte: request.query.metascore}}},
-//     {$sort : {metascore: -1}},
-//     {$limit : request.query.limit}], (error, result) => {
-//       if(error){
-//         return response.status(500).send(error);
-//       }
-//       response.send(result);
-//     });
-//   });
-
-//Doesn't Work
-  app.get("/movies/search", (request, response) => {
-    collection.find({metascore:{$gte: request.query.metascore}}
-      , {limit: request.query.limit}, (error, result) => {
-      console.log(result);
+app.post("/movies/:id", (request, response) => {
+  collection.updateOne(
+    {"id": request.params.id},
+    {$set: {date: request.body.date, review: request.body.review} },
+    { upsert: true}, (error, result) =>{
       if(error){
         return response.status(500).send(error);
       }
-      response.send(result[0]);
+      response.send(result.result);
     });
   });
 
-  app.post("/movies/:id", (request, response) => {
-    collection.updateOne(
-      {"id": request.params.id},
-      {$set: {date: request.body.date, review: request.body.review} },
-      { upsert: true}, (error, result) =>{
-        if(error){
-          return response.status(500).send(error);
-        }
-        response.send(result.result);
-      });
+  app.listen(9292, () => {
+    mongoClient.connect(CONNECTION_URL, { useNewUrlParser: true}, (error,client)=>{
+      if(error){
+        throw error;
+      }
+      database = client.db(DATABASE_NAME);
+      collection = database.collection("movies");
+      console.log("Connected to `" + DATABASE_NAME + "`!");
     });
-
-    app.listen(9292, () => {
-      mongoClient.connect(CONNECTION_URL, { useNewUrlParser: true}, (error,client)=>{
-        if(error){
-          throw error;
-        }
-        database = client.db(DATABASE_NAME);
-        collection = database.collection("movies");
-        console.log("Connected to `" + DATABASE_NAME + "`!");
-      });
-    });
+  });
